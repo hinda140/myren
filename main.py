@@ -1,22 +1,20 @@
-import os, asyncio, io, tempfile
+import os, asyncio, io
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from huggingface_hub import InferenceClient
+from google import genai
 from PIL import Image
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-HF_TOKEN = os.getenv("HF_TOKEN")
-
-client = InferenceClient(token=HF_TOKEN, provider="hf-inference")
-MODEL = "timbrooks/instruct-pix2pix"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏠 Send SketchUp - photorealistic render!")
+    await update.message.reply_text("🏠 Send SketchUp - Gemini will make it photorealistic!")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Rendering... 30 sec ⏳")
+    await update.message.reply_text("Gemini rendering... 15 sec ⏳")
     try:
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
@@ -24,21 +22,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await file.download_to_memory(buf)
         buf.seek(0)
         image = Image.open(buf).convert("RGB")
-        image.thumbnail((768, 768))
+
+        prompt = "Transform this SketchUp screenshot into a photorealistic architectural render. Ultra realistic, modern interior, professional lighting, 8k, highly detailed, keep same structure and perspective, photorealistic materials, wood, glass, shadows"
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image-preview",
+            contents=[prompt, image]
+        )
         
-        # Save to temp file for HF
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            image.save(tmp.name, format="JPEG")
-            tmp_path = tmp.name
-            
-        prompt = "make it photorealistic, modern architecture interior, realistic lighting, ultra detailed, 8k"
-        result = client.image_to_image(tmp_path, prompt=prompt, model=MODEL)
-        
-        out = io.BytesIO()
-        result.save(out, format="JPEG")
-        out.seek(0)
-        await update.message.reply_photo(photo=out, caption="✅ Photorealistic render!")
-        os.remove(tmp_path)
+        # Get generated image
+        for part in response.parts:
+            if part.inline_data:
+                img_data = part.inline_data.data
+                out = io.BytesIO(img_data)
+                await update.message.reply_photo(photo=out, caption="✅ Gemini photorealistic render!")
+                return
+                
+        await update.message.reply_text(f"Gemini text: {response.text}")
+
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
 
