@@ -4,6 +4,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from google import genai
+from google.genai import types
 from PIL import Image
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -23,21 +24,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buf.seek(0)
         image = Image.open(buf).convert("RGB")
 
-        prompt = "Transform this SketchUp screenshot into a photorealistic architectural render. Ultra realistic, modern interior, professional lighting, 8k, highly detailed, keep same structure and perspective"
+        prompt = "Transform this SketchUp screenshot into a photorealistic architectural render. Ultra realistic, modern interior, professional lighting, 8k, highly detailed, keep same structure"
 
         response = client.models.generate_content(
             model="gemini-2.0-flash-preview-image-generation",
-            contents=[prompt, image]
+            contents=[prompt, image],
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"]
+            )
         )
-        
-        for part in response.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                img_data = part.inline_data.data
-                out = io.BytesIO(img_data)
+
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                out = io.BytesIO(part.inline_data.data)
                 await update.message.reply_photo(photo=out, caption="✅ Photorealistic render!")
                 return
-                
-        await update.message.reply_text(f"Result: {response.text}")
+
+        await update.message.reply_text("No image generated")
 
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
