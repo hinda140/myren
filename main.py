@@ -1,4 +1,4 @@
-import os, asyncio, io
+import os, asyncio, io, tempfile
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
@@ -13,10 +13,10 @@ client = InferenceClient(token=HF_TOKEN, provider="hf-inference")
 MODEL = "timbrooks/instruct-pix2pix"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏠 Send SketchUp screenshot - I will make it photorealistic!")
+    await update.message.reply_text("🏠 Send SketchUp - photorealistic render!")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Rendering photorealistic... 30 sec ⏳")
+    await update.message.reply_text("Rendering... 30 sec ⏳")
     try:
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
@@ -25,12 +25,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buf.seek(0)
         image = Image.open(buf).convert("RGB")
         image.thumbnail((768, 768))
-        prompt = "make it photorealistic, modern architecture interior, realistic lighting, ultra detailed, 8k, high quality"
-        result = client.image_to_image(image, prompt=prompt, model=MODEL)
+        
+        # Save to temp file for HF
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            image.save(tmp.name, format="JPEG")
+            tmp_path = tmp.name
+            
+        prompt = "make it photorealistic, modern architecture interior, realistic lighting, ultra detailed, 8k"
+        result = client.image_to_image(tmp_path, prompt=prompt, model=MODEL)
+        
         out = io.BytesIO()
         result.save(out, format="JPEG")
         out.seek(0)
-        await update.message.reply_photo(photo=out, caption="✅ Your photorealistic render!")
+        await update.message.reply_photo(photo=out, caption="✅ Photorealistic render!")
+        os.remove(tmp_path)
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
 
@@ -40,14 +48,12 @@ def run_bot():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    print("Bot is running")
+    print("Bot running")
     app.run_polling()
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot running")
+        self.send_response(200); self.end_headers(); self.wfile.write(b"Bot running")
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
