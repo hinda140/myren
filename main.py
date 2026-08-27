@@ -23,22 +23,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buf.seek(0)
         image = Image.open(buf).convert("RGB")
 
-        prompt = "Transform this SketchUp screenshot into a photorealistic architectural render. Ultra realistic, modern interior, professional lighting, 8k, highly detailed, keep same structure and perspective, photorealistic materials, wood, glass, shadows"
+        prompt = "Transform this SketchUp screenshot into a photorealistic architectural render. Ultra realistic, modern interior, professional lighting, 8k, highly detailed, keep same structure and perspective"
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
+            model="gemini-2.0-flash-preview-image-generation",
             contents=[prompt, image]
         )
         
-        # Get generated image
         for part in response.parts:
-            if part.inline_data:
+            if hasattr(part, 'inline_data') and part.inline_data:
                 img_data = part.inline_data.data
                 out = io.BytesIO(img_data)
-                await update.message.reply_photo(photo=out, caption="✅ Gemini photorealistic render!")
+                await update.message.reply_photo(photo=out, caption="✅ Photorealistic render!")
                 return
                 
-        await update.message.reply_text(f"Gemini text: {response.text}")
+        await update.message.reply_text(f"Result: {response.text}")
 
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
