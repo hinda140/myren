@@ -11,7 +11,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 # FREE model for SketchUp -> Realistic
-MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+ MODEL = "timbrooks/instruct-pix2pix"
 client = InferenceClient(token=HF_TOKEN)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -28,8 +28,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image = Image.open(img_bytes).convert("RGB")
         
         # Render with AI
-        prompt = "photorealistic architecture, ultra detailed, high quality interior, 8k, realistic lighting, modern"
-        result = client.image_to_image(image, prompt=prompt, model=MODEL, strength=0.6)
+        prompt = "photorealistic architecture, ultra detailed, 8k, realistic lighting"
+        result = client.image_to_image(image, prompt=prompt, model=MODEL)
         
         # Send back
         out_bio = io.BytesIO()
